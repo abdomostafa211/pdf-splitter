@@ -3,6 +3,9 @@
 A lightweight browser-based tool to extract a page range from any PDF file — no uploads, no servers, no internet required after the first load.
 
 ---
+## Preview
+
+![PDF Splitter Preview](preview.png)
 
 ## Usage
 
