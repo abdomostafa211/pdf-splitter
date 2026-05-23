@@ -61,4 +61,4 @@ README.md           — this file
 
 ## Author
 
-Abdelrahman — Computer Science student, Faculty of Computers and AI, Fayoum University
+Abdelrahman — Pentester & Cybersecurity Enthusiast
