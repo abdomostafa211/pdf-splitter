@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Splitter</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f11;
+    --surface: #1a1a1f;
+    --surface2: #22222a;
+    --border: rgba(255,255,255,0.08);
+    --border-accent: rgba(99,102,241,0.5);
+    --text: #f0f0f2;
+    --muted: #888898;
+    --accent: #6366f1;
+    --accent-glow: rgba(99,102,241,0.15);
+    --success: #22c55e;
+    --danger: #ef4444;
+    --mono: 'Courier New', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', Tahoma, system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+
+  header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.4rem;
+  }
+
+  header p {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .badge {
+    display: inline-block;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border: 1px solid var(--border-accent);
+    border-radius: 999px;
+    font-size: 0.72rem;
+    padding: 3px 10px;
+    margin-top: 0.5rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 560px;
+    padding: 1.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .card-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title::before {
+    content: '';
+    display: block;
+    width: 3px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-zone p {
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+
+  .drop-zone p strong { color: var(--text); }
+
+  .file-info {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+    margin-top: 1rem;
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .file-info.show { display: flex; }
+
+  .file-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .file-meta {
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .file-meta span {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+  }
+
+  .field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  label {
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  input[type="number"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 1.1rem;
+    font-family: var(--mono);
+    font-weight: 600;
+    padding: 0.6rem 0.9rem;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s;
+    text-align: center;
+    -moz-appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+  input[type="number"]:focus {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  input[type="number"].error { border-color: var(--danger); }
+
+  .separator {
+    font-size: 1.4rem;
+    color: var(--muted);
+    padding-bottom: 0.5rem;
+    user-select: none;
+  }
+
+  .preview-bar {
+    margin-top: 1.2rem;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+    display: none;
+  }
+
+  .preview-bar.show { display: block; }
+
+  .preview-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #818cf8);
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+
+  .preview-label {
+    margin-top: 0.5rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-family: var(--mono);
+    display: none;
+  }
+
+  .preview-label.show { display: block; }
+
+  .preview-label span { color: var(--accent); font-weight: 600; }
+
+  .output-name-field {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  input[type="text"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.9rem;
+    padding: 0.6rem 0.9rem;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input[type="text"]:focus { border-color: var(--accent); }
+
+  .btn {
+    width: 100%;
+    padding: 0.85rem;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 0.5rem;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.3);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #7577f5;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(99,102,241,0.4);
+  }
+
+  .btn-primary:active:not(:disabled) { transform: translateY(0); }
+
+  .btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .status {
+    border-radius: 10px;
+    padding: 0.8rem 1rem;
+    font-size: 0.88rem;
+    display: none;
+    margin-top: 0.5rem;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status.show { display: flex; }
+  .status.info { background: var(--accent-glow); color: #a5b4fc; border: 1px solid var(--border-accent); }
+  .status.success { background: rgba(34,197,94,0.1); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
+  .status.error { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(165,180,252,0.3);
+    border-top-color: #a5b4fc;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .history {
+    width: 100%;
+    max-width: 560px;
+  }
+
+  .history-title {
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 0.6rem;
+    font-weight: 600;
+  }
+
+  .history-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.82rem;
+  }
+
+  .history-item .name {
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+  }
+
+  .history-item .meta { color: var(--muted); font-size: 0.75rem; }
+
+  .dot-success {
+    width: 7px; height: 7px;
+    background: var(--success);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  footer {
+    margin-top: 3rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  footer strong { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PDF Splitter</h1>
+  <p>Extract a page range from any PDF — no uploads, no internet required</p>
+  <span class="badge">runs entirely on your machine — zero upload</span>
+</header>
+
+<div class="card">
+  <div class="card-title">Select File</div>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".pdf">
+    <p><strong>Drag and drop a PDF here</strong><br>or click to browse</p>
+  </div>
+
+  <div class="file-info" id="fileInfo">
+    <div class="file-name" id="fileName"></div>
+    <div class="file-meta">Size: <span id="fileSize"></span> &nbsp;|&nbsp; Pages: <span id="pageCount">—</span></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Page Range</div>
+  <div class="row">
+    <div class="field">
+      <label>From page</label>
+      <input type="number" id="startPage" min="1" value="1" placeholder="1">
+    </div>
+    <div class="separator">→</div>
+    <div class="field">
+      <label>To page</label>
+      <input type="number" id="endPage" min="1" placeholder="last page">
+    </div>
+  </div>
+
+  <div class="preview-bar" id="previewBar">
+    <div class="preview-fill" id="previewFill"></div>
+  </div>
+  <div class="preview-label" id="previewLabel">
+    Extracting <span id="previewCount">—</span> pages (<span id="previewPercent">—</span>% of the file)
+  </div>
+
+  <div class="output-name-field">
+    <label>Output filename</label>
+    <input type="text" id="outputName" placeholder="output.pdf">
+  </div>
+</div>
+
+<div style="width:100%;max-width:560px">
+  <button class="btn btn-primary" id="splitBtn" disabled>
+    Extract &amp; Download
+  </button>
+  <div class="status" id="status"></div>
+</div>
+
+<div class="history" id="historySection" style="display:none; margin-top:1.5rem;">
+  <div class="history-title">Session History</div>
+  <div id="historyList"></div>
+</div>
+
+<footer>
+  Your file never leaves your device — all processing is done in the browser using <strong>pdf-lib</strong>
+</footer>
+
+<script>
+let pdfBytes = null;
+let totalPages = 0;
+let fileName = '';
+
+const fileInput = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+const fileInfo = document.getElementById('fileInfo');
+const fileNameEl = document.getElementById('fileName');
+const fileSizeEl = document.getElementById('fileSize');
+const pageCountEl = document.getElementById('pageCount');
+const startInput = document.getElementById('startPage');
+const endInput = document.getElementById('endPage');
+const outputNameInput = document.getElementById('outputName');
+const splitBtn = document.getElementById('splitBtn');
+const statusEl = document.getElementById('status');
+const previewBar = document.getElementById('previewBar');
+const previewFill = document.getElementById('previewFill');
+const previewLabel = document.getElementById('previewLabel');
+const previewCount = document.getElementById('previewCount');
+const previewPercent = document.getElementById('previewPercent');
+
+function formatSize(bytes) {
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function showStatus(msg, type) {
+  statusEl.className = 'status show ' + type;
+  if (type === 'info') {
+    statusEl.innerHTML = '<div class="spinner"></div><span>' + msg + '</span>';
+  } else {
+    const prefix = type === 'success' ? 'Done: ' : 'Error: ';
+    statusEl.innerHTML = prefix + msg;
+  }
+}
+
+function hideStatus() {
+  statusEl.className = 'status';
+}
+
+function updatePreview() {
+  if (!totalPages) return;
+  const s = parseInt(startInput.value) || 1;
+  const e = parseInt(endInput.value) || totalPages;
+  if (s > 0 && e >= s && e <= totalPages) {
+    const count = e - s + 1;
+    const pct = Math.round((count / totalPages) * 100);
+    previewCount.textContent = count;
+    previewPercent.textContent = pct;
+    previewFill.style.width = pct + '%';
+    previewBar.classList.add('show');
+    previewLabel.classList.add('show');
+  } else {
+    previewBar.classList.remove('show');
+    previewLabel.classList.remove('show');
+  }
+}
+
+async function loadFile(file) {
+  if (!file || !file.name.endsWith('.pdf')) {
+    showStatus('Please select a valid PDF file.', 'error');
+    return;
+  }
+
+  showStatus('Reading file...', 'info');
+  fileName = file.name;
+  const bytes = await file.arrayBuffer();
+  pdfBytes = new Uint8Array(bytes);
+
+  try {
+    const { PDFDocument } = PDFLib;
+    const doc = await PDFDocument.load(pdfBytes);
+    totalPages = doc.getPageCount();
+
+    fileNameEl.textContent = file.name;
+    fileSizeEl.textContent = formatSize(file.size);
+    pageCountEl.textContent = totalPages + ' pages';
+    fileInfo.classList.add('show');
+
+    endInput.value = totalPages;
+    endInput.max = totalPages;
+    startInput.max = totalPages;
+
+    const baseName = file.name.replace(/\.pdf$/i, '');
+    outputNameInput.value = baseName + '_extract.pdf';
+
+    splitBtn.disabled = false;
+    hideStatus();
+    updatePreview();
+  } catch (e) {
+    showStatus('Could not read the file. Make sure it is a valid PDF.', 'error');
+  }
+}
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+startInput.addEventListener('input', updatePreview);
+endInput.addEventListener('input', updatePreview);
+
+splitBtn.addEventListener('click', async () => {
+  const s = parseInt(startInput.value);
+  const e = parseInt(endInput.value);
+
+  startInput.classList.remove('error');
+  endInput.classList.remove('error');
+
+  if (!s || s < 1 || s > totalPages) {
+    startInput.classList.add('error');
+    showStatus('Invalid start page number.', 'error');
+    return;
+  }
+  if (!e || e < s || e > totalPages) {
+    endInput.classList.add('error');
+    showStatus('End page must be >= start page and <= ' + totalPages + '.', 'error');
+    return;
+  }
+
+  showStatus('Extracting pages...', 'info');
+  splitBtn.disabled = true;
+
+  try {
+    const { PDFDocument } = PDFLib;
+    const srcDoc = await PDFDocument.load(pdfBytes);
+    const newDoc = await PDFDocument.create();
+
+    const pageIndices = [];
+    for (let i = s - 1; i <= e - 1; i++) pageIndices.push(i);
+
+    const pages = await newDoc.copyPages(srcDoc, pageIndices);
+    pages.forEach(p => newDoc.addPage(p));
+
+    const outBytes = await newDoc.save();
+    const blob = new Blob([outBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+
+    let outName = outputNameInput.value.trim() || 'output.pdf';
+    if (!outName.endsWith('.pdf')) outName += '.pdf';
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = outName;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const count = e - s + 1;
+    showStatus(count + ' pages extracted (p' + s + ' to p' + e + ')', 'success');
+    addHistory(outName, s, e, count, outBytes.length);
+  } catch (err) {
+    showStatus(err.message, 'error');
+  }
+
+  splitBtn.disabled = false;
+});
+
+function addHistory(name, from, to, count, size) {
+  const section = document.getElementById('historySection');
+  const list = document.getElementById('historyList');
+  section.style.display = 'block';
+
+  const item = document.createElement('div');
+  item.className = 'history-item';
+  item.innerHTML = `
+    <div>
+      <div class="name">${name}</div>
+      <div class="meta">p${from} to p${to} &nbsp;(${count} pages, ${formatSize(size)})</div>
+    </div>
+    <div class="dot-success"></div>
+  `;
+  list.prepend(item);
+}
+</script>
+</body>
+</html>
